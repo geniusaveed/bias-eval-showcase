@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post-Fine-Tuning Bias Evaluation of Small Instruction Models | Aveed &amp; Raza, AAU</title>
+<meta name="description" content="Student research showcase: a re-analysis of Llama 3.2, Qwen 2.5, Phi-3.5 and GPT-3.5 fine-tuned on a balanced ideological QA dataset. University of Klagenfurt.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF;
+  --bg-alt:#F4F6FA;
+  --ink:#131A28;
+  --ink-soft:#525C6E;
+  --line:#E2E6EE;
+  /* showcase gradient palette (web24-style animated hero) */
+  --g1:#141E46;   /* deep navy */
+  --g2:#2B3FA8;   /* royal blue */
+  --g3:#6C3FB8;   /* violet */
+  --g4:#1B8C9E;   /* teal */
+  --accent:#2B3FA8;
+  --accent-2:#6C3FB8;
+  --pole-lib:#4A6FA5;
+  --pole-con:#C05A32;
+  --radius:14px;
+  --maxw:1120px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+body{
+  font-family:'Figtree',system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);
+  line-height:1.65;font-size:17px;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-2);color:#fff}
+a:focus-visible,button:focus-visible{outline:3px solid var(--accent-2);outline-offset:3px;border-radius:4px}
+h1,h2,h3{font-family:'Archivo',sans-serif}
+
+/* ================= NAV ================= */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  transition:background .25s,box-shadow .25s;
+}
+nav.solid{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 0 var(--line)}
+.nav-inner{
+  max-width:var(--maxw);margin:0 auto;padding:1rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+}
+.logo{
+  font-family:'Archivo',sans-serif;font-weight:900;font-size:1.15rem;letter-spacing:.02em;
+  text-decoration:none;color:#fff;transition:color .25s;white-space:nowrap;
+}
+.logo span{background:linear-gradient(90deg,#8FD3E8,#C9A7F5);-webkit-background-clip:text;background-clip:text;color:transparent}
+nav.solid .logo{color:var(--ink)}
+nav.solid .logo span{background:linear-gradient(90deg,var(--g2),var(--g3));-webkit-background-clip:text;background-clip:text;color:transparent}
+.nav-links{display:flex;gap:1.8rem;list-style:none;align-items:center}
+.nav-links a{
+  text-decoration:none;color:rgba(255,255,255,.9);font-weight:600;font-size:.92rem;
+  transition:color .2s;
+}
+nav.solid .nav-links a{color:var(--ink-soft)}
+.nav-links a:hover{color:#8FD3E8}
+nav.solid .nav-links a:hover{color:var(--accent)}
+.nav-cta{
+  background:#fff;color:var(--g1)!important;padding:.5rem 1.1rem;border-radius:999px;
+  font-size:.85rem!important;
+}
+nav.solid .nav-cta{background:linear-gradient(90deg,var(--g2),var(--g3));color:#fff!important}
+.nav-toggle{
+  display:none;background:transparent;border:2px solid rgba(255,255,255,.6);color:#fff;
+  border-radius:8px;padding:.35rem .7rem;font-family:'Archivo',sans-serif;font-weight:700;
+  font-size:.8rem;cursor:pointer;
+}
+nav.solid .nav-toggle{border-color:var(--line);color:var(--ink)}
+
+/* ================= HERO ================= */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;color:#fff;
+  background:linear-gradient(-45deg,var(--g1),var(--g2),var(--g3),var(--g4),var(--g1));
+  background-size:400% 400%;
+  animation:gradientFlow 18s ease infinite;
+  padding:7rem 1.5rem 5rem;
+}
+@keyframes gradientFlow{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+.hero::after{ /* soft grain-ish vignette */
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.08),transparent 55%);
+}
+.hero-inner{max-width:var(--maxw);margin:0 auto;width:100%;position:relative;z-index:1}
+.hero .date-chip{
+  display:inline-flex;align-items:center;gap:.55rem;
+  font-family:'IBM Plex Mono',monospace;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:.45rem 1.1rem;
+  margin-bottom:2rem;background:rgba(255,255,255,.08);
+}
+.hero .date-chip::before{content:"";width:8px;height:8px;border-radius:50%;background:#8FD3E8}
+.hero h1{
+  font-weight:900;letter-spacing:-.02em;line-height:1.02;
+  font-size:clamp(2.6rem,7vw,5.2rem);text-transform:uppercase;
+  max-width:16ch;
+}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(90deg,#8FD3E8,#C9A7F5);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero .tagline{
+  margin-top:1.6rem;font-size:clamp(1.05rem,2vw,1.3rem);max-width:52ch;
+  color:rgba(255,255,255,.88);font-weight:500;
+}
+.hero .byline{
+  margin-top:2.4rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  font-weight:600;
+}
+.hero .byline .names{font-family:'Archivo',sans-serif;font-size:1.1rem}
+.hero .byline .sep{opacity:.5}
+.hero .byline .uni{
+  font-family:'IBM Plex Mono',monospace;font-size:.8rem;letter-spacing:.08em;
+  text-transform:uppercase;color:rgba(255,255,255,.75);width:100%;
+}
+.hero-actions{margin-top:2.6rem;display:flex;gap:1rem;flex-wrap:wrap}
+.btn{
+  display:inline-block;text-decoration:none;font-family:'Archivo',sans-serif;font-weight:700;
+  font-size:.95rem;padding:.9rem 1.9rem;border-radius:999px;transition:transform .15s,box-shadow .15s,background .2s;
+}
+.btn-light{background:#fff;color:var(--g1)}
+.btn-light:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.25)}
+.btn-outline{border:2px solid rgba(255,255,255,.7);color:#fff}
+.btn-outline:hover{background:rgba(255,255,255,.12)}
+.btn-grad{background:linear-gradient(90deg,var(--g2),var(--g3));color:#fff}
+.btn-grad:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(43,63,168,.35)}
+.scroll-hint{
+  position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.7);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;
+  font-family:'IBM Plex Mono',monospace;z-index:1;
+}
+
+/* ================= SECTIONS ================= */
+section{scroll-margin-top:5rem}
+.section-inner{max-width:var(--maxw);margin:0 auto;padding:5.5rem 1.5rem}
+.kicker{
+  font-family:'IBM Plex Mono',monospace;font-size:.78rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--accent-2);font-weight:500;margin-bottom:.8rem;
+}
+.section-title{
+  font-weight:800;font-size:clamp(1.9rem,4vw,3rem);letter-spacing:-.01em;
+  text-transform:uppercase;line-height:1.08;margin-bottom:1.4rem;
+}
+.section-lede{max-width:64ch;color:var(--ink-soft);font-size:1.08rem}
+
+/* research */
+.research-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:3.5rem;margin-top:2.5rem;align-items:start}
+.research-grid p+p{margin-top:1rem}
+.research-grid strong{color:var(--ink)}
+.stat-panel{
+  background:linear-gradient(160deg,var(--g1),var(--g2));color:#fff;
+  border-radius:var(--radius);padding:2rem;display:grid;gap:1.5rem;
+}
+.stat-panel .stat .num{font-family:'Archivo',sans-serif;font-weight:900;font-size:2.2rem;line-height:1}
+.stat-panel .stat .lbl{font-size:.85rem;color:rgba(255,255,255,.8);margin-top:.3rem}
+
+/* figure card */
+.figure{
+  margin-top:3.5rem;background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:2rem;box-shadow:0 4px 24px rgba(19,26,40,.05);
+}
+.figure h3{font-weight:700;font-size:1.25rem;margin-bottom:.35rem}
+.figure .cap{font-size:.88rem;color:var(--ink-soft);margin-bottom:1.4rem;max-width:72ch}
+.legend{display:flex;gap:1.6rem;margin-bottom:1.2rem;font-size:.82rem;font-family:'IBM Plex Mono',monospace;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:.5rem}
+.swatch{width:13px;height:13px;border-radius:4px;display:inline-block}
+
+/* ================= FINDINGS (numbered, web24-style) ================= */
+#findings{background:var(--bg-alt)}
+.findings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;margin-top:2.5rem}
+.finding{
+  background:#fff;border-radius:var(--radius);padding:2.2rem;
+  border:1px solid var(--line);position:relative;overflow:hidden;
+  transition:transform .18s,box-shadow .18s;display:flex;flex-direction:column;gap:.8rem;
+}
+.finding:hover{transform:translateY(-4px);box-shadow:0 14px 34px rgba(19,26,40,.09)}
+.finding .no{
+  font-family:'Archivo',sans-serif;font-weight:900;font-size:3.2rem;line-height:1;
+  background:linear-gradient(120deg,var(--g2),var(--g3));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.finding h3{font-weight:700;font-size:1.35rem;line-height:1.25}
+.finding p{color:var(--ink-soft);font-size:.96rem}
+.finding .metric{
+  margin-top:auto;padding-top:1rem;border-top:1px dashed var(--line);
+  font-family:'IBM Plex Mono',monospace;font-size:.82rem;
+}
+.metric .down{color:var(--pole-con)}
+.metric .up{color:var(--pole-lib)}
+.metric .flat{color:var(--g4)}
+
+/* collapse chart */
+.chart{margin-top:3.5rem;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:2rem;box-shadow:0 4px 24px rgba(19,26,40,.05)}
+.chart h3{font-weight:700;font-size:1.25rem}
+.chart .cap{font-size:.88rem;color:var(--ink-soft);margin:.35rem 0 1.6rem;max-width:72ch}
+.chart-legend{display:flex;gap:1.6rem;font-size:.8rem;font-family:'IBM Plex Mono',monospace;margin-bottom:1.5rem;flex-wrap:wrap}
+.bar-row{display:grid;grid-template-columns:160px 1fr;gap:1rem;align-items:center;margin-bottom:1.15rem}
+.bar-label{font-size:.9rem;font-weight:600;text-align:right}
+.bar-track{display:grid;gap:5px}
+.bar{height:18px;border-radius:5px;position:relative;min-width:3px;transition:width .8s cubic-bezier(.2,.7,.3,1)}
+.bar.base{background:#C7CDD9}
+.bar.tuned{background:linear-gradient(90deg,var(--g2),var(--g3))}
+.bar.tuned.collapsed{background:var(--pole-con)}
+.bar .val{
+  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%);
+  font-family:'IBM Plex Mono',monospace;font-size:.75rem;white-space:nowrap;color:var(--ink-soft);
+}
+
+/* ================= RESEARCHERS ================= */
+.people{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.4rem;margin-top:2.5rem;max-width:720px}
+.person{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:2.2rem;text-align:center;transition:transform .18s,box-shadow .18s;
+}
+.person:hover{transform:translateY(-4px);box-shadow:0 14px 34px rgba(19,26,40,.09)}
+.avatar{
+  width:96px;height:96px;border-radius:50%;margin:0 auto 1.2rem;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Archivo',sans-serif;font-weight:900;font-size:2rem;color:#fff;
+  background:linear-gradient(135deg,var(--g2),var(--g3));
+}
+.person:nth-child(2) .avatar{background:linear-gradient(135deg,var(--g3),var(--g4))}
+.person .name{font-family:'Archivo',sans-serif;font-weight:800;font-size:1.35rem}
+.person .role{color:var(--ink-soft);font-size:.92rem;margin-top:.3rem}
+.person .tag{
+  display:inline-block;margin-top:1rem;font-family:'IBM Plex Mono',monospace;font-size:.72rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--accent-2);
+  border:1px solid var(--line);border-radius:999px;padding:.3rem .9rem;
+}
+
+/* ================= METHODS ================= */
+#methods{background:var(--g1);color:#E9ECF4;position:relative;overflow:hidden}
+#methods::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at 85% 10%,rgba(108,63,184,.35),transparent 55%),
+             radial-gradient(ellipse at 10% 95%,rgba(27,140,158,.3),transparent 50%);
+  pointer-events:none;
+}
+#methods .section-inner{position:relative}
+#methods .kicker{color:#8FD3E8}
+#methods .section-title{color:#fff}
+#methods .section-lede{color:rgba(233,236,244,.8)}
+.methods-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.3rem;margin-top:2.5rem}
+.method{
+  border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);padding:1.7rem;
+  background:rgba(255,255,255,.05);backdrop-filter:blur(4px);
+}
+.method .k{
+  font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.14em;
+  text-transform:uppercase;color:#8FD3E8;margin-bottom:.6rem;
+}
+.method h3{font-weight:700;font-size:1.15rem;color:#fff;margin-bottom:.5rem}
+.method p{font-size:.9rem;color:rgba(233,236,244,.78)}
+.method code{
+  font-family:'IBM Plex Mono',monospace;font-size:.83rem;color:#D7E4FA;
+  background:rgba(0,0,0,.3);padding:.1rem .4rem;border-radius:5px;
+}
+.formula{
+  margin-top:2.4rem;border:1px dashed rgba(255,255,255,.25);border-radius:var(--radius);
+  padding:1.5rem 1.7rem;font-family:'IBM Plex Mono',monospace;font-size:.95rem;color:#D7E4FA;overflow-x:auto;
+}
+.formula .note{font-family:'Figtree',sans-serif;font-size:.85rem;color:rgba(233,236,244,.75);margin-top:.7rem}
+
+/* ================= CTA BAND ================= */
+.cta-band{
+  background:linear-gradient(-45deg,var(--g2),var(--g3),var(--g4),var(--g2));
+  background-size:300% 300%;animation:gradientFlow 14s ease infinite;
+  color:#fff;text-align:center;
+}
+.cta-band .section-inner{padding:5rem 1.5rem}
+.cta-band h2{
+  font-weight:900;font-size:clamp(1.8rem,4.5vw,3.2rem);text-transform:uppercase;
+  letter-spacing:-.01em;line-height:1.1;max-width:22ch;margin:0 auto 1.2rem;
+}
+.cta-band p{max-width:52ch;margin:0 auto 2.2rem;color:rgba(255,255,255,.88)}
+
+/* ================= FOOTER ================= */
+footer{background:var(--g1);color:rgba(233,236,244,.75)}
+.footer-inner{
+  max-width:var(--maxw);margin:0 auto;padding:3rem 1.5rem 2.4rem;
+  display:flex;flex-direction:column;gap:1.6rem;
+}
+.footer-top{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;flex-wrap:wrap}
+.footer-top .logo{color:#fff}
+.footer-nav{display:flex;gap:1.6rem;list-style:none;flex-wrap:wrap}
+.footer-nav a{color:rgba(233,236,244,.75);text-decoration:none;font-size:.88rem;font-weight:600}
+.footer-nav a:hover{color:#8FD3E8}
+.footer-bottom{
+  border-top:1px solid rgba(255,255,255,.12);padding-top:1.4rem;
+  display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;font-size:.84rem;
+}
+.footer-bottom .mono{font-family:'IBM Plex Mono',monospace;font-size:.76rem}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width:820px){
+  .research-grid{grid-template-columns:1fr}
+  .findings-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .nav-links{
+    display:none;position:absolute;top:100%;left:0;right:0;
+    background:#fff;box-shadow:0 12px 24px rgba(19,26,40,.12);
+    flex-direction:column;gap:0;padding:.6rem 1.5rem 1.2rem;align-items:stretch;
+  }
+  .nav-links.open{display:flex}
+  .nav-links a{display:block;padding:.7rem 0;color:var(--ink-soft)!important}
+  .nav-links .nav-cta{background:linear-gradient(90deg,var(--g2),var(--g3));color:#fff!important;text-align:center;margin-top:.5rem;padding:.7rem 1.1rem}
+  .nav-toggle{display:block}
+  nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 0 var(--line)}
+  nav .logo{color:var(--ink)}
+  nav .logo span{background:linear-gradient(90deg,var(--g2),var(--g3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  nav .nav-toggle{border-color:var(--line);color:var(--ink)}
+  .bar-row{grid-template-columns:1fr;gap:.35rem}
+  .bar-label{text-align:left}
+  .bar .val{position:static;transform:none;margin-left:9px}
+  .bar{display:flex;align-items:center}
+}
+</style>
+</head>
+<body>
+
+<nav id="topnav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <a class="logo" href="#home">Bias<span>·Eval</span> 2026</a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="navlinks" onclick="toggleNav(this)">MENU</button>
+    <ul class="nav-links" id="navlinks">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#research">Research</a></li>
+      <li><a href="#findings">Key Findings</a></li>
+      <li><a href="#methods">Methods</a></li>
+      <li><a class="nav-cta" href="#" aria-label="Download full report PDF (link to be added)">Full Report (PDF)</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<header class="hero" id="home">
+  <div class="hero-inner">
+    <span class="date-chip">Research Showcase · 2026 · Klagenfurt</span>
+    <h1>Measuring Bias, <em>After the Fine-Tune</em></h1>
+    <p class="tagline">Post-Fine-Tuning Bias Evaluation of Small Instruction Models — what really happens when Llama, Qwen, Phi and GPT-3.5 are steered on a balanced ideological dataset.</p>
+    <div class="byline">
+      <span class="names">Sayed Aveed</span><span class="sep">×</span><span class="names">Ahmad Raza</span>
+      <span class="uni">Master's Students · University of Klagenfurt (AAU)</span>
+    </div>
+    <div class="hero-actions">
+      <a class="btn btn-light" href="#research">Explore the research</a>
+      <a class="btn btn-outline" href="#" aria-label="Download full report PDF (link to be added)">Download Full Report (PDF)</a>
+    </div>
+  </div>
+  <span class="scroll-hint" aria-hidden="true">scroll ↓</span>
+</header>
+
+<!-- ================= RESEARCH ================= -->
+<section id="research">
+  <div class="section-inner">
+    <p class="kicker reveal">The Project</p>
+    <h2 class="section-title reveal">A showcase of what<br>fine-tuning really changes</h2>
+    <p class="section-lede reveal">This study asks a deceptively simple question: if you fine-tune a small instruction model on a perfectly balanced ideological dataset, do you get controlled, balanced steering? The answer, across four models, is no — and the ways it fails are more interesting than the question.</p>
+
+    <div class="research-grid">
+      <div class="reveal">
+        <p>Four models — <strong>Llama 3.2 1B Instruct, Qwen 2.5 1.5B Instruct, Phi-3.5 Mini Instruct, and GPT-3.5 Turbo</strong> — were fine-tuned on the same 792-example split of a balanced ideological question–answer dataset spanning abortion, pension policy, religion, and unemployment benefits. All were evaluated on the same 88 held-out prompts, with prompt echoes stripped so that only genuine assistant continuations were scored by a deterministic LLM judge.</p>
+        <p>The central result is <strong>asymmetric steering rather than a uniform mean shift</strong>. Llama's conservative-prompt alignment fell from 0.399 to 0.269 while its liberal-prompt alignment rose from 0.633 to 0.731. Qwen mirrored the pattern — and both collapsed into small pools of templated answers. Phi-3.5 stayed stable throughout, and GPT-3.5 gained modestly without collapsing, though its improvement was still one-sided.</p>
+        <p>The takeaway: <strong>training loss and mean alignment alone are insufficient.</strong> Stance-specific asymmetry and behavioral degradation must be measured, or the most important effects stay invisible.</p>
+      </div>
+      <aside class="stat-panel reveal">
+        <div class="stat"><div class="num">4</div><div class="lbl">instruction models under one common evaluation layer</div></div>
+        <div class="stat"><div class="num">880</div><div class="lbl">balanced ideological QA examples · 4 policy topics</div></div>
+        <div class="stat"><div class="num">88</div><div class="lbl">held-out prompts, assistant-only continuations scored</div></div>
+        <div class="stat"><div class="num">~30%</div><div class="lbl">unique-response ratio after collapse — down from ~94%</div></div>
+      </aside>
+    </div>
+
+    <div class="figure reveal">
+      <h3>The asymmetry in one picture</h3>
+      <p class="cap">Change in alignment after fine-tuning, split by the prompt's ideological target. Llama and Qwen improved where they were already strongest — and deteriorated sharply on conservative-target prompts.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--pole-con)"></i>conservative prompts</span>
+        <span><i class="swatch" style="background:var(--pole-lib)"></i>liberal prompts</span>
+      </div>
+      <svg viewBox="0 0 720 240" width="100%" role="img" aria-label="Diverging bar chart of alignment change by stance for four models">
+        <line x1="360" y1="10" x2="360" y2="230" stroke="#E2E6EE" stroke-width="1.5"/>
+        <text x="12" y="36" font-family="Figtree" font-size="13" fill="#131A28" font-weight="700">Llama 3.2 1B</text>
+        <rect x="243" y="24" width="117" height="14" rx="4" fill="#C05A32"/>
+        <rect x="360" y="42" width="88" height="14" rx="4" fill="#4A6FA5"/>
+        <text x="237" y="35" text-anchor="end" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">−0.130</text>
+        <text x="454" y="53" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">+0.098</text>
+        <text x="12" y="92" font-family="Figtree" font-size="13" fill="#131A28" font-weight="700">Qwen 2.5 1.5B</text>
+        <rect x="244" y="80" width="116" height="14" rx="4" fill="#C05A32"/>
+        <rect x="360" y="98" width="18" height="14" rx="4" fill="#4A6FA5"/>
+        <text x="238" y="91" text-anchor="end" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">−0.129</text>
+        <text x="384" y="109" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">+0.020</text>
+        <text x="12" y="148" font-family="Figtree" font-size="13" fill="#131A28" font-weight="700">Phi-3.5 Mini</text>
+        <rect x="360" y="136" width="17" height="14" rx="4" fill="#C05A32"/>
+        <rect x="356" y="154" width="4" height="14" rx="2" fill="#4A6FA5"/>
+        <text x="383" y="147" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">+0.019</text>
+        <text x="350" y="165" text-anchor="end" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">−0.004</text>
+        <text x="12" y="204" font-family="Figtree" font-size="13" fill="#131A28" font-weight="700">GPT-3.5 Turbo</text>
+        <rect x="355" y="192" width="5" height="14" rx="2" fill="#C05A32"/>
+        <rect x="360" y="210" width="17" height="14" rx="4" fill="#4A6FA5"/>
+        <text x="349" y="203" text-anchor="end" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">−0.005</text>
+        <text x="383" y="221" font-family="IBM Plex Mono" font-size="11" fill="#525C6E">+0.019</text>
+      </svg>
+      <p class="cap" style="margin-top:1rem;margin-bottom:0">Tuned-minus-base change in mean alignment per stance group. Left of the axis: deterioration on conservative-target prompts. Right: improvement on liberal-target prompts.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= KEY FINDINGS ================= -->
+<section id="findings">
+  <div class="section-inner">
+    <p class="kicker reveal">Why it matters</p>
+    <h2 class="section-title reveal">Key Findings</h2>
+    <p class="section-lede reveal">Four results, four different stories — and none of them visible in the training loss.</p>
+
+    <div class="findings-grid">
+      <article class="finding reveal">
+        <div class="no">01</div>
+        <h3>Asymmetric steering, not uniform shifts</h3>
+        <p>Fine-tuning did not move models evenly toward the prompted stance. Llama and Qwen improved on liberal-target prompts while deteriorating sharply on conservative-target prompts — a directional imbalance that a single pooled mean completely hides.</p>
+        <div class="metric"><span class="down">con 0.399 → 0.269</span> · <span class="up">lib 0.633 → 0.731</span> (Llama)</div>
+      </article>
+      <article class="finding reveal">
+        <div class="no">02</div>
+        <h3>Severe response collapse</h3>
+        <p>Llama and Qwen compressed into small pools of templated stock answers after tuning. Unique-response ratios dropped from ~94% to ~30%, and mean output lengths shrank by 500–770 characters — degradation invisible to optimization metrics.</p>
+        <div class="metric"><span class="down">94.3% → 29.5%</span> unique (Llama) · <span class="down">94.3% → 31.8%</span> (Qwen)</div>
+      </article>
+      <article class="finding reveal">
+        <div class="no">03</div>
+        <h3>Phi-3.5 stayed stable</h3>
+        <p>Under the identical dataset, recipe, and judge, Phi-3.5 Mini preserved its full response diversity and topic balance — proof that the collapse seen elsewhere was model-sensitive, not an inevitable artifact of the data or evaluation pipeline.</p>
+        <div class="metric"><span class="flat">95.5% → 95.5%</span> unique-response ratio</div>
+      </article>
+      <article class="finding reveal">
+        <div class="no">04</div>
+        <h3>Evaluation methodology is the result</h3>
+        <p>Low training loss did not predict usable steering. Prompt-echo stripping, stance-specific breakdowns, diversity ratios, and degeneration flags were all required to see what fine-tuning actually changed — one scalar score is not enough.</p>
+        <div class="metric"><span class="flat">loss ≈ 0.24–0.25</span> for both stable and collapsed runs</div>
+      </article>
+    </div>
+
+    <div class="chart reveal">
+      <h3>Response diversity before and after fine-tuning</h3>
+      <p class="cap">Unique-response ratio on the 88 held-out prompts. Two models collapsed into templates; two did not.</p>
+      <div class="chart-legend">
+        <span><i class="swatch" style="background:#C7CDD9"></i> base</span>
+        <span><i class="swatch" style="background:linear-gradient(90deg,var(--g2),var(--g3))"></i> tuned</span>
+        <span><i class="swatch" style="background:var(--pole-con)"></i> tuned (collapsed)</span>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Llama 3.2 1B</div>
+        <div class="bar-track">
+          <div class="bar base" data-w="94.3"><span class="val">94.3%</span></div>
+          <div class="bar tuned collapsed" data-w="29.5"><span class="val">29.5%</span></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Qwen 2.5 1.5B</div>
+        <div class="bar-track">
+          <div class="bar base" data-w="94.3"><span class="val">94.3%</span></div>
+          <div class="bar tuned collapsed" data-w="31.8"><span class="val">31.8%</span></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Phi-3.5 Mini</div>
+        <div class="bar-track">
+          <div class="bar base" data-w="95.5"><span class="val">95.5%</span></div>
+          <div class="bar tuned" data-w="95.5"><span class="val">95.5%</span></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">GPT-3.5 Turbo</div>
+        <div class="bar-track">
+          <div class="bar base" data-w="97.7"><span class="val">97.7%</span></div>
+          <div class="bar tuned" data-w="86.4"><span class="val">86.4%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RESEARCHERS ================= -->
+<section id="researchers">
+  <div class="section-inner">
+    <p class="kicker reveal">Meet the researchers</p>
+    <h2 class="section-title reveal">The people behind<br>the project</h2>
+    <div class="people">
+      <article class="person reveal">
+        <div class="avatar" aria-hidden="true">SA</div>
+        <div class="name">Sayed Aveed</div>
+        <div class="role">Master's student</div>
+        <span class="tag">University of Klagenfurt</span>
+      </article>
+      <article class="person reveal">
+        <div class="avatar" aria-hidden="true">AR</div>
+        <div class="name">Ahmad Raza</div>
+        <div class="role">Master's student</div>
+        <span class="tag">University of Klagenfurt</span>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ================= METHODS ================= -->
+<section id="methods">
+  <div class="section-inner">
+    <p class="kicker reveal">How it was done</p>
+    <h2 class="section-title reveal">Methods</h2>
+    <p class="section-lede reveal">One dataset, one judge, one evaluation layer — four very different outcomes.</p>
+
+    <div class="methods-grid">
+      <article class="method reveal">
+        <div class="k">Dataset</div>
+        <h3>Balanced ideological QA</h3>
+        <p>880 examples across abortion, pension, religion, and unemployment benefits — 440 liberal and 440 conservative stance labels, split 90/10 into 792 training examples and 88 held-out evaluation prompts.</p>
+      </article>
+      <article class="method reveal">
+        <div class="k">Fine-tuning</div>
+        <h3>QLoRA, two epochs</h3>
+        <p>Local models tuned with a 4-bit QLoRA setup: <code>lr 2e-4</code>, <code>rank 16</code>, <code>alpha 32</code>, <code>dropout 0.05</code>, effective batch size 8. GPT-3.5 Turbo trained on the same split via OpenAI's supervised fine-tuning API.</p>
+      </article>
+      <article class="method reveal">
+        <div class="k">Judge</div>
+        <h3>Deterministic LLM scoring</h3>
+        <p>Prompt echoes were stripped so only assistant continuations were scored. A single deterministic <code>gpt-5.4</code> judge assigned stance, sentiment, and safety scores across all four models.</p>
+      </article>
+      <article class="method reveal">
+        <div class="k">Metrics</div>
+        <h3>Beyond mean alignment</h3>
+        <p>Stance alignment and magnitude were paired with unique-response ratio, low-alpha degeneration flags, response length, and paired bootstrap confidence intervals over the 88 held-out prompts.</p>
+      </article>
+    </div>
+
+    <div class="formula reveal">
+      alignment(y, s) = 1 − |y − s| / 2
+      <p class="note">where y ∈ {+1, −1} is the prompted ideological target and s ∈ [−1, 1] is the judge-assigned stance. A score of 0.5 signals ideological non-commitment, not partial success — successful steering requires movement well above 0.5, toward 1.0.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="cta-band" aria-label="Download the full report">
+  <div class="section-inner">
+    <h2 class="reveal">Read the full analysis</h2>
+    <p class="reveal">Topic-level breakdowns, qualitative examples, the complete judge prompt, and bootstrap confidence intervals — all in the full report.</p>
+    <a class="btn btn-light reveal" href="#" aria-label="Download full report PDF (link to be added)">Download Full Report (PDF)</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <a class="logo" href="#home">Bias<span>·Eval</span> 2026</a>
+      <ul class="footer-nav">
+        <li><a href="#home">Home</a></li>
+        <li><a href="#research">Research</a></li>
+        <li><a href="#findings">Key Findings</a></li>
+        <li><a href="#methods">Methods</a></li>
+        </ul>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Sayed Aveed &amp; Ahmad Raza. All rights reserved.</span>
+      <span class="mono">University of Klagenfurt (AAU) · Austria</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// mobile nav
+function toggleNav(btn){
+  const links = document.getElementById('navlinks');
+  const open = links.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open);
+}
+document.querySelectorAll('#navlinks a').forEach(a=>{
+  a.addEventListener('click', ()=> {
+    document.getElementById('navlinks').classList.remove('open');
+    document.querySelector('.nav-toggle').setAttribute('aria-expanded','false');
+  });
+});
+
+// nav turns solid after leaving the hero
+const nav = document.getElementById('topnav');
+function onScroll(){
+  nav.classList.toggle('solid', window.scrollY > window.innerHeight - 90);
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+onScroll();
+
+// scroll reveal (respects reduced motion)
+const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (prefersReduced) {
+  document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+} else {
+  const io = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+  },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+}
+
+// animate bar widths on scroll
+const bars = document.querySelectorAll('.bar');
+function setBars(animate){
+  bars.forEach(b=>{
+    const w = b.getAttribute('data-w');
+    if(!animate){ b.style.transition='none'; }
+    b.style.width = 'calc(' + w + '% - 64px)';
+  });
+}
+if (prefersReduced) {
+  setBars(false);
+} else {
+  bars.forEach(b=>b.style.width='0%');
+  const chartEl = document.querySelector('.chart');
+  const cio = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){ setBars(true); cio.unobserve(e.target); }
+    });
+  },{threshold:.25});
+  if(chartEl) cio.observe(chartEl);
+}
+</script>
+</body>
+</html>
